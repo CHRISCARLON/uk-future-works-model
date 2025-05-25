@@ -21,7 +21,7 @@ This project generates a standardised GeoPackage containing information about pl
 - **Organisation tables**: organisation, contactdetails
 - **Future works tables**: plannedprogramme, networklink
 - **Relationship tables**: relationship_organisationtocontactdetails
-- **Code list tables**: 15 reference tables with standardized values
+- **Code list tables**: 16 reference tables with standardised values
 - **Unified view**: future_works_unified for easy data access
 
 ## Getting Started
@@ -41,10 +41,10 @@ This project generates a standardised GeoPackage containing information about pl
 
 ## Data Model
 
-The data model is focused on network links representing planned utility works:
+The data model is focused on network links representing planned utility works and cycle network development:
 
 - Organisations plan and manage programmes
-- Network links represent future utility infrastructure changes
+- Network links represent future utility/cycle infrastructure changes
 - Each link includes detailed metadata on timing, location, depth, and installation methods
 - USRN (Unique Street Reference Number) links to authoritative identifiers for street locations
 - All data is accessible through a unified view joining all related information - this is called the future_works_unified layer

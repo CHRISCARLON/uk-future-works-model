@@ -2,13 +2,11 @@
 UK Future Works Profile GeoPackage
 Creates a UK Future Works Profile GeoPackage for sharing future works profile data between utility companies and local authorities
 """
-
 import os
 import sys
 from datetime import datetime
 from osgeo import ogr, osr
 from typing import Optional, Any
-
 
 class UKFutureWorksProfileGeoPackage:
     def __init__(self, output_path):
@@ -17,56 +15,57 @@ class UKFutureWorksProfileGeoPackage:
         self.driver = ogr.GetDriverByName("GPKG")
         self.ds: Optional[Any] = None
         self.srs = None
+        
         if self.driver is None:
             raise Exception("GPKG driver not available. Check GDAL installation.")
-
+    
     def create_geopackage(self):
         """Main method to create the GeoPackage with all tables"""
         print(f"Creating UK Future Works Profile GeoPackage: {self.output_path}")
-
+        
         # Delete existing file if it exists
         if os.path.exists(self.output_path):
             os.remove(self.output_path)
-
+        
         # Create new GeoPackage
         self.ds = self.driver.CreateDataSource(self.output_path)
         if self.ds is None:
             raise Exception(f"Failed to create GeoPackage: {self.output_path}")
-
+        
         # Set up British National Grid (EPSG:27700) as default SRS
         self.srs = osr.SpatialReference()
         self.srs.ImportFromEPSG(27700)
-
+        
         try:
             # Create organisation schema tables
             self._create_organisation_tables()
-
+            
             # Create future works tables
             self._create_future_works_tables()
-
+            
             # Create code list tables
             self._create_codelist_tables()
-
+            
             # Create relationship tables
             self._create_relationship_tables()
-
+            
             # Create views
             self._create_views()
-
+            
             print("GeoPackage created successfully!")
-
+            
         except Exception as e:
             print(f"Error creating GeoPackage: {e}")
             raise
         finally:
             # Close the datasource
             self.ds = None
-
+    
     def _create_organisation_tables(self):
         """Create organisation schema tables"""
         print("Creating organisation tables...")
         assert self.ds is not None
-
+        
         # Create organisation table
         layer = self.ds.CreateLayer("organisation", geom_type=ogr.wkbNone)
         self._add_field(layer, "systemid", ogr.OFTString)
@@ -79,7 +78,7 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "organisationtype", ogr.OFTString)
         self._add_field(layer, "swacode", ogr.OFTString)
         self._add_field(layer, "websiteurl", ogr.OFTString)
-
+        
         # Create contactdetails table
         layer = self.ds.CreateLayer("contactdetails", geom_type=ogr.wkbNone)
         self._add_field(layer, "systemid", ogr.OFTString)
@@ -93,12 +92,12 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "emailaddress", ogr.OFTString)
         self._add_field(layer, "telephonenumber", ogr.OFTString)
         self._add_field(layer, "dataproviderid_fk", ogr.OFTString)
-
+    
     def _create_future_works_tables(self):
         """Create future works specific tables - network link focused"""
         print("Creating future works tables...")
         assert self.ds is not None
-
+        
         # Create plannedprogramme table
         layer = self.ds.CreateLayer("plannedprogramme", geom_type=ogr.wkbNone)
         self._add_standard_fields(layer)
@@ -108,7 +107,7 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "plannedstartdate", ogr.OFTDate)
         self._add_field(layer, "plannedenddate", ogr.OFTDate)
         self._add_field(layer, "dataproviderid_fk", ogr.OFTString)
-
+        
         # Create networklink table with linestring geometry
         layer = self.ds.CreateLayer(
             "networklink", srs=self.srs, geom_type=ogr.wkbLineString
@@ -135,15 +134,18 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "objectowner", ogr.OFTString)
         self._add_field(layer, "operator", ogr.OFTString)
         self._add_field(layer, "usrn", ogr.OFTString)
-        self._add_field(layer, "linkstatus", ogr.OFTString)
+        self._add_field(layer, "operationalstatus", ogr.OFTString)
         self._add_field(layer, "dataproviderid_fk", ogr.OFTString)
         self._add_field(layer, "programmeid_fk", ogr.OFTString)
-
+        self._add_field(layer, "conveyancemethod", ogr.OFTString)
+        self._add_field(layer, "schemestatus", ogr.OFTString)
+        self._add_field(layer, "cycleschemedetails", ogr.OFTString)
+    
     def _create_relationship_tables(self):
         """Create relationship tables"""
         print("Creating relationship tables...")
         assert self.ds is not None
-
+        
         # Organisation to contact details relationship
         layer = self.ds.CreateLayer(
             "relationship_organisationtocontactdetails", geom_type=ogr.wkbNone
@@ -156,197 +158,250 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "linkedorganisationid", ogr.OFTString)
         self._add_field(layer, "linkedcontactdetailsid", ogr.OFTString)
         self._add_field(layer, "dataproviderid_fk", ogr.OFTString)
-
+    
     def _create_codelist_tables(self):
         """Create and populate code list tables"""
         print("Creating and populating code list tables...")
         assert self.ds is not None
-
+        
         # Define code lists and their values
         codelists = {
             "lifecyclestatusvalue": [
-                ("fw-lcs-001", "Active"),
-                ("fw-lcs-002", "Draft"),
-                ("fw-lcs-003", "Under Review"),
-                ("fw-lcs-004", "Approved"),
-                ("fw-lcs-005", "Superseded"),
-                ("fw-lcs-006", "Cancelled"),
-                ("fw-lcs-007", "Archived"),
+                ("active", "Active"),
+                ("draft", "Draft"),
+                ("under_review", "Under Review"),
+                ("approved", "Approved"),
+                ("superseded", "Superseded"),
+                ("cancelled", "Cancelled"),
+                ("archived", "Archived"),
             ],
             "organisationtypevalue": [
-                ("fw-org-001", "Utility Company"),
-                ("fw-org-002", "Local Authority"),
-                ("fw-org-003", "Highway Authority"),
-                ("fw-org-004", "Contractor"),
-                ("fw-org-005", "Consultant"),
-                ("fw-org-006", "Regulatory Body"),
-                ("fw-org-007", "Other"),
+                ("utility_company", "Utility Company"),
+                ("local_authority", "Local Authority"),
+                ("highway_authority", "Highway Authority"),
+                ("contractor", "Contractor"),
+                ("consultant", "Consultant"),
+                ("regulatory_body", "Regulatory Body"),
+                ("other", "Other"),
             ],
             "contactdetailstypevalue": [
-                ("fw-cdt-001", "Planning Coordinator"),
-                ("fw-cdt-002", "Project Manager"),
-                ("fw-cdt-003", "Emergency Contact"),
-                ("fw-cdt-004", "Asset Protection"),
-                ("fw-cdt-005", "General Enquiries"),
-                ("fw-cdt-006", "Other"),
+                ("planning_coordinator", "Planning Coordinator"),
+                ("project_manager", "Project Manager"),
+                ("emergency_contact", "Emergency Contact"),
+                ("asset_protection", "Asset Protection"),
+                ("general_enquiries", "General Enquiries"),
+                ("other", "Other"),
             ],
             "plannedworkstatusvalue": [
-                ("fw-pws-001", "Proposed"),
-                ("fw-pws-002", "Under Consultation"),
-                ("fw-pws-003", "Approved"),
-                ("fw-pws-004", "Scheduled"),
-                ("fw-pws-005", "In Preparation"),
-                ("fw-pws-006", "In Progress"),
-                ("fw-pws-007", "Completed"),
-                ("fw-pws-008", "On Hold"),
-                ("fw-pws-009", "Cancelled"),
-                ("fw-pws-010", "Deferred"),
+                ("proposed", "Proposed"),
+                ("under_consultation", "Under Consultation"),
+                ("approved", "Approved"),
+                ("scheduled", "Scheduled"),
+                ("in_preparation", "In Preparation"),
+                ("in_progress", "In Progress"),
+                ("completed", "Completed"),
+                ("on_hold", "On Hold"),
+                ("cancelled", "Cancelled"),
+                ("deferred", "Deferred"),
             ],
             "programmetypevalue": [
-                ("fw-prg-001", "Capital Investment"),
-                ("fw-prg-002", "Routine Maintenance"),
-                ("fw-prg-003", "Emergency Preparedness"),
-                ("fw-prg-004", "Network Expansion"),
-                ("fw-prg-005", "Asset Replacement"),
-                ("fw-prg-006", "Regulatory Compliance"),
-                ("fw-prg-007", "Customer Connection"),
-                ("fw-prg-008", "Network Reinforcement"),
-                ("fw-prg-009", "Other"),
+                ("capital_investment", "Capital Investment"),
+                ("routine_maintenance", "Routine Maintenance"),
+                ("emergency_preparedness", "Emergency Preparedness"),
+                ("network_expansion", "Network Expansion"),
+                ("asset_replacement", "Asset Replacement"),
+                ("regulatory_compliance", "Regulatory Compliance"),
+                ("customer_connection", "Customer Connection"),
+                ("network_reinforcement", "Network Reinforcement"),
+                ("cycle_network_development", "Cycle Network Development"),
+                ("active_travel_scheme", "Active Travel Scheme"),
+                ("other", "Other"),
             ],
             "worktypevalue": [
-                ("fw-wkt-001", "New Installation"),
-                ("fw-wkt-002", "Full Replacement"),
-                ("fw-wkt-003", "Partial Replacement"),
-                ("fw-wkt-004", "Upgrade"),
-                ("fw-wkt-005", "Repair"),
-                ("fw-wkt-006", "Removal"),
-                ("fw-wkt-007", "Abandonment"),
-                ("fw-wkt-008", "Relocation"),
-                ("fw-wkt-009", "Protection Works"),
-                ("fw-wkt-010", "Survey/Investigation"),
-                ("fw-wkt-011", "Other"),
+                ("new_installation", "New Installation"),
+                ("full_replacement", "Full Replacement"),
+                ("partial_replacement", "Partial Replacement"),
+                ("upgrade", "Upgrade"),
+                ("repair", "Repair"),
+                ("removal", "Removal"),
+                ("abandonment", "Abandonment"),
+                ("relocation", "Relocation"),
+                ("protection_works", "Protection Works"),
+                ("survey_investigation", "Survey/Investigation"),
+                ("cycle_lane_installation", "Cycle Lane Installation"),
+                ("cycle_path_construction", "Cycle Path Construction"),
+                ("cycle_crossing_upgrade", "Cycle Crossing Upgrade"),
+                ("other", "Other"),
             ],
             "confidencelevelvalue": [
-                ("fw-cnf-001", "Confirmed"),
-                ("fw-cnf-002", "Highly Likely"),
-                ("fw-cnf-003", "Likely"),
-                ("fw-cnf-004", "Possible"),
-                ("fw-cnf-005", "Under Review"),
-                ("fw-cnf-006", "Tentative"),
+                ("confirmed", "Confirmed"),
+                ("highly_likely", "Highly Likely"),
+                ("likely", "Likely"),
+                ("possible", "Possible"),
+                ("under_review", "Under Review"),
+                ("tentative", "Tentative"),
             ],
             "utilitytypevalue": [
-                ("fw-utl-001", "Electricity"),
-                ("fw-utl-002", "Gas"),
-                ("fw-utl-003", "Water"),
-                ("fw-utl-004", "Sewer"),
-                ("fw-utl-005", "Telecommunications"),
-                ("fw-utl-006", "District Heating"),
-                ("fw-utl-007", "Fuel and Chemicals"),
-                ("fw-utl-008", "Transport Signalling"),
-                ("fw-utl-009", "Drainage"),
-                ("fw-utl-010", "Other"),
+                ("electricity", "Electricity"),
+                ("gas", "Gas"),
+                ("water", "Water"),
+                ("sewer", "Sewer"),
+                ("telecommunications", "Telecommunications"),
+                ("district_heating", "District Heating"),
+                ("fuel_and_chemicals", "Fuel and Chemicals"),
+                ("transport_signalling", "Transport Signalling"),
+                ("drainage", "Drainage"),
+                ("cycling_infrastructure", "Cycling Infrastructure"),
+                ("transport_infrastructure", "Transport Infrastructure"),
+                ("other", "Other"),
             ],
             "materialvalue": [
-                ("fw-mat-001", "PE (Polyethylene)"),
-                ("fw-mat-002", "PVC"),
-                ("fw-mat-003", "Ductile Iron"),
-                ("fw-mat-004", "Steel"),
-                ("fw-mat-005", "Concrete"),
-                ("fw-mat-006", "Clay"),
-                ("fw-mat-007", "Copper"),
-                ("fw-mat-008", "Fibre Optic"),
-                ("fw-mat-009", "Composite"),
-                ("fw-mat-010", "HDPE"),
-                ("fw-mat-011", "Cast Iron"),
-                ("fw-mat-012", "Unknown"),
-                ("fw-mat-013", "Other"),
+                ("pe (polyethylene)", "PE (Polyethylene)"),
+                ("pvc", "PVC"),
+                ("ductile iron", "Ductile Iron"),
+                ("steel", "Steel"),
+                ("concrete", "Concrete"),
+                ("clay", "Clay"),
+                ("copper", "Copper"),
+                ("fibre optic", "Fibre Optic"),
+                ("composite", "Composite"),
+                ("hdpe", "HDPE"),
+                ("cast iron", "Cast Iron"),
+                ("unknown", "Unknown"),
+                ("other", "Other"),
+                ("abs", "ABS"),
+                ("asphalt", "Asphalt"),
+                ("aluminium", "Aluminium"),
+                ("asbestos cement", "Asbestos Cement"),
+                ("brick", "Brick"),
+                ("ceramic", "Ceramic"),
+                ("coated steel", "Coated Steel"),
+                ("earthen", "Earthen"),
+                ("fiberglass", "Fiberglass"),
+                ("galvanised iron", "Galvanised Iron"),
+                ("galvanised steel", "Galvanised Steel"),
+                ("geotextile", "Geotextile"),
+                ("gravel", "Gravel"),
+                ("iron", "Iron"),
+                ("ldpe", "LDPE"),
+                ("mdpe", "MDPE"),
+                ("mopc", "MOPC"),
+                ("optical fibre", "Optical Fibre"),
+                ("pex", "PEX"),
+                ("plastic", "Plastic"),
+                ("spun iron", "Spun Iron"),
+                ("stone", "Stone"),
+                ("tile", "Tile"),
+                ("transite", "Transite"),
+                ("upvc", "uPVC"),
+                ("wood", "Wood"),
+                ("lead", "Lead"),
+                ("pitch fibre", "Pitch Fibre"),
+                ("carbon fibre", "Carbon Fibre"),
             ],
             "installationmethodvalue": [
-                ("fw-ins-001", "Open Cut"),
-                ("fw-ins-002", "Directional Drilling"),
-                ("fw-ins-003", "Moling"),
-                ("fw-ins-004", "Tunnelling"),
-                ("fw-ins-005", "Thrust Boring"),
-                ("fw-ins-006", "Pipe Jacking"),
-                ("fw-ins-007", "Slip Lining"),
-                ("fw-ins-008", "Pipe Bursting"),
-                ("fw-ins-009", "Trenching"),
-                ("fw-ins-010", "Other"),
+                ("open_cut", "Open Cut"),
+                ("directional_drilling", "Directional Drilling"),
+                ("moling", "Moling"),
+                ("tunnelling", "Tunnelling"),
+                ("thrust_boring", "Thrust Boring"),
+                ("pipe_jacking", "Pipe Jacking"),
+                ("slip_lining", "Slip Lining"),
+                ("pipe_bursting", "Pipe Bursting"),
+                ("trenching", "Trenching"),
+                ("other", "Other"),
             ],
             "locationtypevalue": [
-                ("fw-loc-001", "Carriageway"),
-                ("fw-loc-002", "Footway"),
-                ("fw-loc-003", "Verge"),
-                ("fw-loc-004", "Cycle Path"),
-                ("fw-loc-005", "Private Land"),
-                ("fw-loc-006", "Open Space"),
-                ("fw-loc-007", "Railway Land"),
-                ("fw-loc-008", "Waterway"),
-                ("fw-loc-009", "Other"),
+                ("carriageway", "Carriageway"),
+                ("footpath", "Footpath"),
+                ("verge", "Verge"),
+                ("cycle_path", "Cycle Path"),
+                ("field", "Field"),
+                ("other", "Other"),
             ],
             "dataprovenancevalue": [
-                ("fw-dpv-001", "Asset Management System"),
-                ("fw-dpv-002", "Planning Application"),
-                ("fw-dpv-003", "Capital Programme"),
-                ("fw-dpv-004", "Regulatory Submission"),
-                ("fw-dpv-005", "Customer Request"),
-                ("fw-dpv-006", "Engineering Assessment"),
-                ("fw-dpv-007", "Manual Entry"),
-                ("fw-dpv-008", "Other"),
+                ("asset_management_system", "Asset Management System"),
+                ("planning_application", "Planning Application"),
+                ("capital_programme", "Capital Programme"),
+                ("regulatory_submission", "Regulatory Submission"),
+                ("customer_request", "Customer Request"),
+                ("engineering_assessment", "Engineering Assessment"),
+                ("manual_entry", "Manual Entry"),
+                ("other", "Other"),
             ],
             "measurementunitsvalue": [
-                ("fw-mun-001", "Metres"),
-                ("fw-mun-002", "Millimetres"),
-                ("fw-mun-003", "Kilometres"),
-                ("fw-mun-004", "Square Metres"),
-                ("fw-mun-005", "Degrees"),
-                ("fw-mun-006", "Bar"),
-                ("fw-mun-007", "kV"),
-                ("fw-mun-008", "Unknown"),
+                ("metres", "Metres"),
+                ("millimetres", "Millimetres"),
+                ("kilometres", "Kilometres"),
+                ("square_metres", "Square Metres"),
+                ("degrees", "Degrees"),
+                ("bar", "Bar"),
+                ("kv", "kV"),
+                ("unknown", "Unknown"),
             ],
             "datasensitivitylevelvalue": [
-                ("fw-dsl-001", "Public"),
-                ("fw-dsl-002", "Official"),
-                ("fw-dsl-003", "Official-Sensitive"),
-                ("fw-dsl-004", "Restricted"),
-                ("fw-dsl-005", "Confidential"),
-                ("fw-dsl-006", "Secret"),
-                ("fw-dsl-007", "Top Secret"),
+                ("public", "Public"),
+                ("restricted", "Restricted"),
             ],
-            "linkstatusvalue": [
-                ("fw-lks-001", "New"),
-                ("fw-lks-002", "Existing"),
-                ("fw-lks-003", "Proposed New"),
-                ("fw-lks-004", "Existing - To Be Modified"),
-                ("fw-lks-005", "Existing - To Be Replaced"),
-                ("fw-lks-006", "Existing - To Be Removed"),
+            "operationalstatusvalue": [
+                ("abandoned", "Abandoned"),
+                ("commissioned", "Commissioned"),
+                ("decommissioned", "Decommissioned"),
+                ("delete_before_installation", "Delete Before Installation"),
+                ("in_service", "In Service"),
+                ("installed", "Installed"),
+                ("other", "Other"),
+                ("out_of_commission", "Out Of Commission"),
+                ("pending_abandonment", "Pending Abandonment"),
+                ("proposed", "Proposed"),
+                ("pending_removal", "Pending Removal"),
+                ("removed", "Removed"),
+                ("under_construction", "Under Construction"),
+                ("unfit_for_service", "Unfit For Service"),
+                ("unknown", "Unknown"),
+            ],
+            "cycleschemestatus": [
+                ("proposed", "Proposed"),
+                ("feasibility_study", "Feasibility Study"),
+                ("public_consultation", "Public Consultation"),
+                ("approved", "Approved"),
+                ("funded", "Funded"),
+                ("planning_granted", "Planning Granted"),
+                ("in_progress", "In Progress"),
+                ("completed", "Completed"),
+                ("canceled", "Canceled"),
             ],
         }
-
-        # Create utilitysubtypevalue separately as it has an extra field
-        layer = self.ds.CreateLayer("utilitysubtypevalue", geom_type=ogr.wkbNone)
+        
+        # Create conveyancemethodvalue separately as it has an extra field
+        layer = self.ds.CreateLayer("conveyancemethodvalue", geom_type=ogr.wkbNone)
         self._add_codelist_fields(layer)
         self._add_field(layer, "applicabledomains", ogr.OFTString)
-
-        # Populate utilitysubtypevalue
-        utilitysubtypes = [
-            ("fw-uts-001", "High Voltage", "Electricity"),
-            ("fw-uts-002", "Low Voltage", "Electricity"),
-            ("fw-uts-003", "Street Lighting", "Electricity"),
-            ("fw-uts-004", "High Pressure", "Gas"),
-            ("fw-uts-005", "Medium Pressure", "Gas"),
-            ("fw-uts-006", "Low Pressure", "Gas"),
-            ("fw-uts-007", "Potable Water", "Water"),
-            ("fw-uts-008", "Raw Water", "Water"),
-            ("fw-uts-009", "Foul Sewer", "Sewer"),
-            ("fw-uts-010", "Surface Water", "Sewer,Drainage"),
-            ("fw-uts-011", "Combined Sewer", "Sewer"),
-            ("fw-uts-012", "Fibre Optic", "Telecommunications"),
-            ("fw-uts-013", "Copper Cable", "Telecommunications"),
-            ("fw-uts-014", "Other", "All"),
+        
+        # Populate conveyancemethodvalue
+        conveyancemethods = [
+            ("low_pressure", "Low Pressure", "Fuel And Chemicals,Gas,Water"),
+            ("low_voltage", "Low Voltage", "Electricity"),
+            ("pressure", "Pressure", "Fuel And Chemicals,Gas,Water"),
+            ("gravity", "Gravity", "Drainage,Fuel And Chemicals,Sewer,Thermal,Water"),
+            ("high_pressure", "High Pressure", "Fuel And Chemicals,Gas,Water"),
+            ("high_voltage", "High Voltage", "Electricity"),
+            ("unknown", "Unknown", "All"),
+            ("other", "Other", "All"),
+            ("syphon", "Syphon", "Drainage,Fuel And Chemicals,Sewer,Thermal,Water"),
+            ("vacuum", "Vacuum", "Drainage,Fuel And Chemicals,Sewer,Thermal,Water"),
+            ("intermediate_voltage", "Intermediate Voltage", "Electricity"),
+            ("medium_voltage", "Medium Voltage", "Electricity"),
+            ("intermediate_pressure", "Intermediate Pressure", "Fuel And Chemicals,Gas,Water"),
+            ("medium_pressure", "Medium Pressure", "Fuel And Chemicals,Gas"),
+            ("pumped", "Pumped", "Drainage,Fuel And Chemicals,Sewer,Thermal,Water"),
+            ("regional_intermediate_pressure", "Regional Intermediate Pressure", "Fuel And Chemicals,Gas"),
+            ("regional_high_pressure", "Regional High Pressure", "Fuel And Chemicals,Gas"),
+            ("extra_high_voltage", "Extra High Voltage", "Electricity"),
+            ("national_high_pressure", "National High Pressure", "Fuel And Chemicals,Gas,Water"),
         ]
-
-        for systemid, value, domains in utilitysubtypes:
+        
+        for systemid, value, domains in conveyancemethods:
             feature = ogr.Feature(layer.GetLayerDefn())
             feature.SetField("systemid", systemid)
             feature.SetField("value", value)
@@ -355,12 +410,12 @@ class UKFutureWorksProfileGeoPackage:
             feature.SetField("datelastupdated", datetime.now().isoformat())
             layer.CreateFeature(feature)
             feature = None
-
+        
         # Create and populate other code list tables
         for table_name, values in codelists.items():
             layer = self.ds.CreateLayer(table_name, geom_type=ogr.wkbNone)
             self._add_codelist_fields(layer)
-
+            
             # Populate with values
             for systemid, value in values:
                 feature = ogr.Feature(layer.GetLayerDefn())
@@ -370,18 +425,18 @@ class UKFutureWorksProfileGeoPackage:
                 feature.SetField("datelastupdated", datetime.now().isoformat())
                 layer.CreateFeature(feature)
                 feature = None
-
+    
     def _create_views(self):
         """Create database views using SQL"""
         print("Creating views...")
         assert self.ds is not None
-
+        
         # Create a unified future works table that combines all necessary data
         # This will be the ONLY table visible to end users
         layer = self.ds.CreateLayer(
             "future_works_unified", srs=self.srs, geom_type=ogr.wkbLineString
         )
-
+        
         # Add all the fields users need to see
         self._add_field(layer, "work_id", ogr.OFTString)
         self._add_field(layer, "work_name", ogr.OFTString)
@@ -392,9 +447,9 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "swa_code", ogr.OFTString)
         self._add_field(layer, "utility_type", ogr.OFTString)
         self._add_field(layer, "utility_subtype", ogr.OFTString)
+        self._add_field(layer, "conveyance_method", ogr.OFTString)
         self._add_field(layer, "usrn", ogr.OFTString)
         self._add_field(layer, "street_name", ogr.OFTString)
-        self._add_field(layer, "link_status", ogr.OFTString)
         self._add_field(layer, "work_type", ogr.OFTString)
         self._add_field(layer, "planned_start_date", ogr.OFTDate)
         self._add_field(layer, "planned_end_date", ogr.OFTDate)
@@ -409,18 +464,22 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "contact_phone", ogr.OFTString)
         self._add_field(layer, "last_updated", ogr.OFTDateTime)
         self._add_field(layer, "data_sensitivity", ogr.OFTString)
-
-        # Populate the unified table with a SQL insert from joined tables
-        sql = """
+        self._add_field(layer, "operational_status", ogr.OFTString)  # Added this field
+        self._add_field(layer, "scheme_status", ogr.OFTString)
+        self._add_field(layer, "cycle_scheme_details", ogr.OFTString)
+        
+        # Store the SQL for the populate script to execute
+        self.unified_view_sql = """
         INSERT INTO future_works_unified (
-            work_id, work_name, description, 
+            work_id, work_name, description,
             organisation_name, organisation_shortname, organisation_type, swa_code,
-            utility_type, utility_subtype, usrn, street_name, link_status, work_type,
+            utility_type, utility_subtype, conveyance_method, usrn, street_name, work_type,
             planned_start_date, planned_end_date, confidence_level,
             material, installation_method, depth_metres,
             programme_name, programme_type,
             contact_name, contact_email, contact_phone,
-            last_updated, data_sensitivity, geom
+            last_updated, data_sensitivity, operational_status, geom,
+            scheme_status, cycle_scheme_details
         )
         SELECT 
             nl.systemid as work_id,
@@ -432,9 +491,9 @@ class UKFutureWorksProfileGeoPackage:
             org.swacode as swa_code,
             nl.utilitytype as utility_type,
             nl.utilitysubtype as utility_subtype,
+            nl.conveyancemethod as conveyance_method,
             nl.usrn,
             nl.localereference as street_name,
-            nl.linkstatus as link_status,
             nl.worktype as work_type,
             nl.plannedstartdate as planned_start_date,
             nl.plannedenddate as planned_end_date,
@@ -449,7 +508,10 @@ class UKFutureWorksProfileGeoPackage:
             cd.telephonenumber as contact_phone,
             nl.datelastupdated as last_updated,
             nl.datasensitivitylevel as data_sensitivity,
-            nl.geom
+            nl.operationalstatus as operational_status,
+            nl.geom,
+            nl.schemestatus as scheme_status,
+            nl.cycleschemedetails as cycle_scheme_details
         FROM networklink nl
         LEFT JOIN organisation org ON nl.dataproviderid_fk = org.systemid
         LEFT JOIN plannedprogramme prog ON nl.programmeid_fk = prog.systemid
@@ -457,10 +519,11 @@ class UKFutureWorksProfileGeoPackage:
         LEFT JOIN contactdetails cd ON rel.linkedcontactdetailsid = cd.systemid
         WHERE nl.lifecyclestatus = 'Active'
         """
-
-        # Execute after all tables are populated
+        
         # Note: This SQL will be run by the populate script
-
+        print("Note: The unified view SQL has been prepared but needs to be executed after data population.")
+        print("SQL stored in self.unified_view_sql for use by the populate script.")
+    
     def _add_standard_fields(self, layer):
         """Add standard MUDDI fields to a layer"""
         self._add_field(layer, "systemid", ogr.OFTString)
@@ -476,7 +539,7 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "dataowner", ogr.OFTString)
         self._add_field(layer, "dataownerassigneduniqueid", ogr.OFTString)
         self._add_field(layer, "datasensitivitylevel", ogr.OFTString)
-
+    
     def _add_codelist_fields(self, layer):
         """Add standard fields for code list tables"""
         self._add_field(layer, "systemid", ogr.OFTString)
@@ -485,7 +548,7 @@ class UKFutureWorksProfileGeoPackage:
         self._add_field(layer, "versionnumber", ogr.OFTString)
         self._add_field(layer, "versiondate", ogr.OFTDateTime)
         self._add_field(layer, "value", ogr.OFTString)
-
+    
     def _add_field(self, layer, name, field_type, width=None):
         """Add a field to a layer"""
         field_defn = ogr.FieldDefn(name, field_type)
@@ -493,31 +556,32 @@ class UKFutureWorksProfileGeoPackage:
             field_defn.SetWidth(width)
         layer.CreateField(field_defn)
 
-
 def main():
     """Main function"""
     # Default output path
     output_path = "uk_future_works_example.gpkg"
-
+    
     # Check command line arguments
     if len(sys.argv) > 1:
         output_path = sys.argv[1]
-
+    
     # Create the GeoPackage
     creator = UKFutureWorksProfileGeoPackage(output_path)
     creator.create_geopackage()
-
+    
     print(f"\nGeoPackage created: {output_path}")
     print("\nTables created:")
     print("- Organisation tables: organisation, contactdetails")
     print("- Future works tables: plannedprogramme, networklink")
     print("- Relationship tables: relationship_organisationtocontactdetails")
-    print("- Code list tables: 15 reference tables populated with values")
+    print("- Code list tables: 16 reference tables populated with values")
+    print("  Including: operationalstatusvalue, conveyancemethodvalue, materialvalue (expanded)")
     print("- Unified table: future_works_unified (contains all joined data)")
     print(
         "\nThe main table to use is 'future_works_unified' which contains all information in one place."
     )
-
+    print("\nIMPORTANT: The unified view needs to be populated after data is loaded into the base tables.")
+    print("The SQL for this is available in the creator.unified_view_sql property.")
 
 if __name__ == "__main__":
     main()
