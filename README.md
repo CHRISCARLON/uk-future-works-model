@@ -2,7 +2,7 @@
 
 A standardised GeoPackage for sharing planned utility works between utility companies and local authorities in the UK.
 
-Version 0.1.0
+Version 0.1.1
 
 ## Overview
 
