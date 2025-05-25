@@ -1,0 +1,9 @@
+[project]
+name = "future-works-data-model"
+version = "0.1.0"
+description = "A standardised GeoPackage for sharing planned utility works between utility companies and local authorities in the UK."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "gdal>=3.11.0",
+]
